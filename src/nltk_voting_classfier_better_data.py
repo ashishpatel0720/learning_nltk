@@ -11,6 +11,8 @@ from sklearn.svm import SVC, LinearSVC, NuSVC
 from nltk.classify import ClassifierI
 from statistics import mode
 
+from nltk.tokenize import word_tokenize
+
 
 class VoteClassifier(ClassifierI):
     def __init__(self, *classifiers):
@@ -34,26 +36,35 @@ class VoteClassifier(ClassifierI):
         return conf
 
 
-documents = [(list(movie_reviews.words(fileid)), category)
-             for category in movie_reviews.categories()
-             for fileid in movie_reviews.fileids(category)]
+short_pos = open("short_reviews/positive.txt", "r").read()
+short_neg = open("short_reviews/negative.txt", "r").read()
 
-#shuffling so that both pos and negative comes shuffled otherwise we will just choose same category for testing and accuracy will
-# be very unpredictive
-# random.shuffle(documents)
+documents = []
+
+for r in short_pos.split('\n'):
+    documents.append((r, "pos"))
+
+for r in short_neg.split('\n'):
+    documents.append((r, "neg"))
 
 all_words = []
 
-for w in movie_reviews.words():
+short_pos_words = word_tokenize(short_pos)
+short_neg_words = word_tokenize(short_neg)
+
+for w in short_pos_words:
+    all_words.append(w.lower())
+
+for w in short_neg_words:
     all_words.append(w.lower())
 
 all_words = nltk.FreqDist(all_words)
 
-word_features = list(all_words.keys())[:3000]
+word_features = list(all_words.keys())[:5000]
 
 
 def find_features(document):
-    words = set(document)
+    words = word_tokenize(document)
     features = {}
     for w in word_features:
         features[w] = (w in words)
@@ -63,15 +74,21 @@ def find_features(document):
 
 # print((find_features(movie_reviews.words('neg/cv000_29416.txt'))))
 
-featuresets = [(find_features(word_list), category) for (word_list, category) in documents]
+featuresets = [(find_features(rev), category) for (rev, category) in documents]
 
-print(len(featuresets))
+random.shuffle(featuresets)
 
-training_set = featuresets[:1900]
-testing_set = featuresets[1900:]
+# positive data example:
+training_set = featuresets[:10000]
+testing_set = featuresets[10000:]
+
+##
+### negative data example:
+##training_set = featuresets[100:]
+##testing_set =  featuresets[:100]
+
 
 classifier = nltk.NaiveBayesClassifier.train(training_set)
-
 print("Original Naive Bayes Algo accuracy percent:", (nltk.classify.accuracy(classifier, testing_set)) * 100)
 classifier.show_most_informative_features(15)
 
@@ -93,8 +110,6 @@ SGDClassifier_classifier.train(training_set)
 print("SGDClassifier_classifier accuracy percent:",
       (nltk.classify.accuracy(SGDClassifier_classifier, testing_set)) * 100)
 
-### Commenting as it has very low accuracy
-
 ##SVC_classifier = SklearnClassifier(SVC())
 ##SVC_classifier.train(training_set)
 ##print("SVC_classifier accuracy percent:", (nltk.classify.accuracy(SVC_classifier, testing_set))*100)
@@ -107,25 +122,11 @@ NuSVC_classifier = SklearnClassifier(NuSVC())
 NuSVC_classifier.train(training_set)
 print("NuSVC_classifier accuracy percent:", (nltk.classify.accuracy(NuSVC_classifier, testing_set)) * 100)
 
-voted_classifier = VoteClassifier(classifier,
-                                  NuSVC_classifier,
-                                  LinearSVC_classifier,
-                                  SGDClassifier_classifier,
-                                  MNB_classifier,
-                                  BernoulliNB_classifier,
-                                  LogisticRegression_classifier)
+voted_classifier = VoteClassifier(
+    NuSVC_classifier,
+    LinearSVC_classifier,
+    MNB_classifier,
+    BernoulliNB_classifier,
+    LogisticRegression_classifier)
 
 print("voted_classifier accuracy percent:", (nltk.classify.accuracy(voted_classifier, testing_set)) * 100)
-
-print("Classification testSet1:", voted_classifier.classify(testing_set[0][0]), "Confidence %:",
-      voted_classifier.confidence(testing_set[0][0]) * 100)
-print("Classification testSet2:", voted_classifier.classify(testing_set[1][0]), "Confidence %:",
-      voted_classifier.confidence(testing_set[1][0]) * 100)
-print("Classification testSet3:", voted_classifier.classify(testing_set[2][0]), "Confidence %:",
-      voted_classifier.confidence(testing_set[2][0]) * 100)
-print("Classification testSet4:", voted_classifier.classify(testing_set[3][0]), "Confidence %:",
-      voted_classifier.confidence(testing_set[3][0]) * 100)
-print("Classification testSet5:", voted_classifier.classify(testing_set[4][0]), "Confidence %:",
-      voted_classifier.confidence(testing_set[4][0]) * 100)
-print("Classification testSet6:", voted_classifier.classify(testing_set[5][0]), "Confidence %:",
-      voted_classifier.confidence(testing_set[5][0]) * 100)
